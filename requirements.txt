@@ -1,0 +1,6 @@
+tensorflow>=2.12,<2.18
+numpy<2
+matplotlib>=3.7
+tensorboard>=2.12
+pydot>=1.4
+graphviz>=0.20
