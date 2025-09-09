@@ -5,6 +5,7 @@ import tensorflow as tf
 
 AUTOTUNE = tf.data.AUTOTUNE
 
+
 def _load_builtin_dataset(name: str):
     name = name.lower()
     if name == "mnist":
@@ -28,21 +29,26 @@ def _load_builtin_dataset(name: str):
     input_shape = x_train.shape[1:]
     return (x_train, y_train), (x_test, y_test), input_shape, num_classes
 
-def _augment_example(image: tf.Tensor, label: tf.Tensor, channels: int) -> Tuple[tf.Tensor, tf.Tensor]:
-    # Simple, fast augmentations that are GPU-friendly
-    if channels == 1:
-        # Convert to 3 channels for consistent ops if needed
-        image = tf.image.grayscale_to_rgb(image)
-        channels = 3
 
-    image = tf.image.random_flip_left_right(image)
-    image = tf.image.random_brightness(image, max_delta=0.1)
-    image = tf.image.random_contrast(image, lower=0.9, upper=1.1)
-    image = tf.clip_by_value(image, 0.0, 1.0)
-    # Return to original channels if we expanded
-    if channels == 3 and image.shape[-1] == 3 and tf.shape(label)[0:0].shape.rank is not None:
-        pass
-    return image, label
+def _augment_example(image: tf.Tensor, label: tf.Tensor, channels: int) -> Tuple[tf.Tensor, tf.Tensor]:
+    # Keep channel count consistent with the original dataset
+    orig_channels = channels
+
+    x = image
+    if orig_channels == 1:
+        # Do color-agnostic ops in RGB space, then convert back
+        x = tf.image.grayscale_to_rgb(x)  # (H, W, 3)
+
+    x = tf.image.random_flip_left_right(x)
+    x = tf.image.random_brightness(x, max_delta=0.1)
+    x = tf.image.random_contrast(x, lower=0.9, upper=1.1)
+    x = tf.clip_by_value(x, 0.0, 1.0)
+
+    if orig_channels == 1:
+        x = tf.image.rgb_to_grayscale(x)  # back to (H, W, 1)
+
+    return x, label
+
 
 def _preprocess(example: Tuple[tf.Tensor, tf.Tensor], num_classes: int, augment: bool, channels: int):
     image, label = example
@@ -52,6 +58,7 @@ def _preprocess(example: Tuple[tf.Tensor, tf.Tensor], num_classes: int, augment:
     label = tf.cast(label, tf.int32)
     label = tf.one_hot(label, depth=num_classes)
     return image, label
+
 
 def build_dataset(
     x,
@@ -88,6 +95,7 @@ def build_dataset(
         ds = ds.prefetch(AUTOTUNE)
 
     return ds
+
 
 def get_datasets(
     name: str = "mnist",
